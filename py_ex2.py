@@ -4,10 +4,7 @@ from functools import reduce
 import operator
 
 
-class ModelTypes:
-    DECISION_TREE = 0
-    KNN = 1
-    NAIVE_BASE = 2
+MODEL_TYPES = ["Decision tree", "KNN", "Naive base"]
 
 
 def load_table(table_file_path):
@@ -55,7 +52,7 @@ def knn_classify(training_table, instance, k=5):
     return sorted(knn_class_name_counter, key=knn_class_name_counter.get)[-1]
 
 
-def get_table_classes_names(table):
+def get_classes_names(table):
     return set(map(lambda x: x[1], table))
 
 
@@ -81,12 +78,12 @@ def get_class_probability(table, class_name):
 def get_smoothed_probability(table, instance, class_name):
     smoothed_attributes_probabilities = \
         [get_smoothed_attribute_probability(table, class_name, x, y) for x, y in instance.items()]
-    return reduce(operator.mul, smoothed_attributes_probabilities + [get_class_probability(table, class_name)], 1)
+    return reduce(operator.mul, smoothed_attributes_probabilities, get_class_probability(table, class_name))
 
 
 def naive_base_classify(training_table, instance):
-    return max(get_table_classes_names(training_table),
-               key=lambda x: get_smoothed_probability(training_table, instance, x))
+    # TODO - what in the case of equal probability
+    return max(get_classes_names(training_table), key=lambda x: get_smoothed_probability(training_table, instance, x))
 
 
 def create_prediction(training_table, instances, model_type):
@@ -100,9 +97,11 @@ def create_prediction(training_table, instances, model_type):
     """
     prediction = []
     for instance in instances:
-        if model_type == ModelTypes.KNN:
+        if model_type == "Decision tree":
+            pass
+        elif model_type == "KNN":
             prediction.append(knn_classify(training_table, instance))
-        elif model_type == ModelTypes.NAIVE_BASE:
+        elif model_type == "Naive base":
             prediction.append(naive_base_classify(training_table, instance))
         else:
             raise NotImplementedError()
@@ -119,7 +118,7 @@ def get_prediction_accuracy(prediction, real):
     if len(prediction) != len(real):
         return 0.0
 
-    return sum(x == y for x, y in zip(prediction, real)) / float(len(prediction))
+    return round(sum(x == y for x, y in zip(prediction, real)) / float(len(prediction)), 2)
 
 
 def get_table_instances(table):
@@ -134,12 +133,10 @@ def output_predictions(training_table, test_table, output_file_path="output.txt"
     :param output_file_path: path to a file to write the output into
     """
     header_line = "\t".join(["Num", "DT ", "KNN>", "naiveBase"])
+    test_instances = get_table_instances(test_table)
+    predictions = list(map(lambda x: create_prediction(training_table, test_instances, x), MODEL_TYPES))
     real = list(map(lambda x: x[1], test_table))
-    dt_prediction = []
-    knn_prediction = create_prediction(training_table, get_table_instances(test_table), ModelTypes.KNN)
-    naive_base_prediction = create_prediction(training_table, get_table_instances(test_table), ModelTypes.NAIVE_BASE)
-    predictions = [dt_prediction, knn_prediction, naive_base_prediction]
-    predictions_accuracies = map(lambda x: str(round(get_prediction_accuracy(x, real), 2)), predictions)
+    predictions_accuracies = map(lambda x: str(get_prediction_accuracy(x, real)), predictions)
 
     with open(output_file_path, "w") as output_file:
         output_file.write(header_line + "\n")
