@@ -78,10 +78,13 @@ def calculate_prediction_accuracy(prediction, real):
     :param real: a prediction like structure containing the real data
     :return: the accuracy the prediction is write
     """
+    if len(prediction) != len(real):
+        return 0.0
+
     return sum(x == y for x, y in zip(prediction, real)) / float(len(prediction))
 
 
-def output_prediction(training_table, test_table, output_file_path="output.txt"):
+def output_predictions(training_table, test_table, output_file_path="output.txt"):
     """
     Creates output file given both training and test tables.
     :param training_table: a table (See load_table function doc for more information)
@@ -89,25 +92,25 @@ def output_prediction(training_table, test_table, output_file_path="output.txt")
     :param output_file_path: path to a file to write the output into
     """
     header_line = "\t".join(["Num", "DT ", "KNN>", "naiveBase"])
+    real = list(map(lambda x: x[1], test_table))
     dt_prediction = []
     knn_prediction = create_prediction(training_table, list(map(lambda x: x[0], test_table)), ModelTypes.KNN)
-    knn_accuracy = calculate_prediction_accuracy(knn_prediction, list(map(lambda x: x[1], test_table)))
     naive_base_prediction = []
-    accuracies = ("0", str(knn_accuracy), "0")
+    predictions = [dt_prediction, knn_prediction, naive_base_prediction]
+    predictions_accuracies = map(lambda x: str(calculate_prediction_accuracy(x, real)), predictions)
+
     with open(output_file_path, "w") as output_file:
         output_file.write(header_line + "\n")
-        i = 1
-        for instance_prediction in zip_longest(dt_prediction, knn_prediction, naive_base_prediction, fillvalue=""):
-            output_file.write("%d\t" % i + "\t".join(instance_prediction) + "\n")
-            i += 1
+        for instance_number, instance_prediction in enumerate(zip_longest(*predictions, fillvalue="")):
+            output_file.write("%d\t" % (instance_number + 1) + "\t".join(instance_prediction) + "\n")
 
-        output_file.write("\t" + "\t".join(accuracies) + "\n")
+        output_file.write("\t" + "\t".join(predictions_accuracies) + "\n")
 
 
 def main():
     training_table = load_table("train.txt")
     test_table = load_table("test.txt")
-    output_prediction(training_table, test_table)
+    output_predictions(training_table, test_table)
 
 
 if __name__ == "__main__":
