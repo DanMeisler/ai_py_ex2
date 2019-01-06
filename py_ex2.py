@@ -1,5 +1,7 @@
 from itertools import zip_longest
 from collections import Counter
+from functools import reduce
+import operator
 
 
 class ModelTypes:
@@ -26,7 +28,7 @@ def load_table(table_file_path):
     return table
 
 
-def calculate_hamming_distance(instance1, instance2):
+def get_hamming_distance(instance1, instance2):
     """
     Given two table instances (dictionaries), returns the hamming distance between them.
     :param instance1: first instance (See load_table function doc for more information)
@@ -48,9 +50,43 @@ def knn_classify(training_table, instance, k=5):
     :param k: the k parameter in the knn algorithm
     :return: the instance class_name
     """
-    knn = sorted(training_table, key=lambda x: calculate_hamming_distance(x[0], instance))[:k]
+    knn = sorted(training_table, key=lambda x: get_hamming_distance(x[0], instance))[:k]
     knn_class_name_counter = Counter(map(lambda x: x[1], knn))
     return sorted(knn_class_name_counter, key=knn_class_name_counter.get)[-1]
+
+
+def get_table_classes_names(table):
+    return set(map(lambda x: x[1], table))
+
+
+def get_possible_attribute_value_count(table, attribute_name):
+    return len(set(map(lambda x: x[0][attribute_name], table)))
+
+
+def get_instance_count(table, filter_function):
+    return len(list(filter(filter_function, table)))
+
+
+def get_smoothed_attribute_probability(table, class_name, attribute_name, attribute_value):
+    k = get_possible_attribute_value_count(table, attribute_name)
+    n1 = get_instance_count(table, lambda x: ((x[1] == class_name) and (x[0][attribute_name] == attribute_value)))
+    n2 = get_instance_count(table, lambda x: x[1] == class_name)
+    return (n1 + 1) / float(n2 + k)
+
+
+def get_class_probability(table, class_name):
+    return get_instance_count(table, lambda x: x[1] == class_name) / float(len(table))
+
+
+def get_smoothed_probability(table, instance, class_name):
+    smoothed_attributes_probabilities = \
+        [get_smoothed_attribute_probability(table, class_name, x, y) for x, y in instance.items()]
+    return reduce(operator.mul, smoothed_attributes_probabilities + [get_class_probability(table, class_name)], 1)
+
+
+def naive_base_classify(training_table, instance):
+    return max(get_table_classes_names(training_table),
+               key=lambda x: get_smoothed_probability(training_table, instance, x))
 
 
 def create_prediction(training_table, instances, model_type):
@@ -66,12 +102,14 @@ def create_prediction(training_table, instances, model_type):
     for instance in instances:
         if model_type == ModelTypes.KNN:
             prediction.append(knn_classify(training_table, instance))
+        elif model_type == ModelTypes.NAIVE_BASE:
+            prediction.append(naive_base_classify(training_table, instance))
         else:
             raise NotImplementedError()
     return prediction
 
 
-def calculate_prediction_accuracy(prediction, real):
+def get_prediction_accuracy(prediction, real):
     """
     Calculates the accuracy of a prediction.
     :param prediction: a prediction (See create_prediction function doc for more information)
@@ -84,6 +122,10 @@ def calculate_prediction_accuracy(prediction, real):
     return sum(x == y for x, y in zip(prediction, real)) / float(len(prediction))
 
 
+def get_table_instances(table):
+    return list(map(lambda x: x[0], table))
+
+
 def output_predictions(training_table, test_table, output_file_path="output.txt"):
     """
     Creates output file given both training and test tables.
@@ -94,10 +136,10 @@ def output_predictions(training_table, test_table, output_file_path="output.txt"
     header_line = "\t".join(["Num", "DT ", "KNN>", "naiveBase"])
     real = list(map(lambda x: x[1], test_table))
     dt_prediction = []
-    knn_prediction = create_prediction(training_table, list(map(lambda x: x[0], test_table)), ModelTypes.KNN)
-    naive_base_prediction = []
+    knn_prediction = create_prediction(training_table, get_table_instances(test_table), ModelTypes.KNN)
+    naive_base_prediction = create_prediction(training_table, get_table_instances(test_table), ModelTypes.NAIVE_BASE)
     predictions = [dt_prediction, knn_prediction, naive_base_prediction]
-    predictions_accuracies = map(lambda x: str(calculate_prediction_accuracy(x, real)), predictions)
+    predictions_accuracies = map(lambda x: str(round(get_prediction_accuracy(x, real), 2)), predictions)
 
     with open(output_file_path, "w") as output_file:
         output_file.write(header_line + "\n")
