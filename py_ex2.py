@@ -1,8 +1,8 @@
-from itertools import zip_longest
 from collections import Counter, deque
+from itertools import zip_longest
 from functools import reduce
 import operator
-
+import math
 
 MODEL_TYPES = ["Decision tree", "KNN", "Naive base"]
 
@@ -30,7 +30,7 @@ class DecisionTreeNode(object):
         self.attribute_name = None
         self.attribute_value = None
         self.children = []
-        self.class_name = None
+        self.class_name = class_name
         self._depth = depth
 
     def __str__(self):
@@ -76,8 +76,25 @@ class DecisionTree(object):
         self._root = self._run_dtl(self._table, attributes_names, 0)
 
     @staticmethod
+    def compute_entropy(table):
+        entropy = 0
+        for class_name in get_classes_names(table):
+            class_probability = get_class_probability(table, class_name)
+            entropy -= class_probability * math.log(class_probability)
+        return entropy
+
+    @staticmethod
+    def compute_gain(table, attribute_name):
+        children_tables = []
+        for attribute_value in get_possible_attribute_values(table, attribute_name):
+            children_tables.append(list(filter(lambda x: x[0][attribute_name] == attribute_value, table)))
+
+        return DecisionTree.compute_entropy(table) - sum(
+            map(lambda x: (len(x) / len(table)) * DecisionTree.compute_entropy(x), children_tables))
+
+    @staticmethod
     def _dtl_best_attribute(table, attributes_names):
-        return attributes_names[0]
+        return max(attributes_names, key=lambda x: DecisionTree.compute_gain(table, x))
 
     def _run_dtl(self, table, attributes_names, depth):
         if len(table) == 0:
