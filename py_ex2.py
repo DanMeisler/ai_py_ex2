@@ -26,18 +26,14 @@ def load_table(table_file_path):
 
 
 class DecisionTreeNode(object):
-    def __init__(self, depth=0, class_name=None):
+    def __init__(self, class_name=None):
         self.attribute_name = None
         self.attribute_value = None
         self.children = []
         self.class_name = class_name
-        self._depth = depth
 
     def __str__(self):
-        if self._depth == 0:
-            return ""
-        string = "" if self._depth == 1 else "\t" * self._depth + "|"
-        string += self.attribute_name + "=" + self.attribute_value
+        string = self.attribute_name + "=" + self.attribute_value
         if self.class_name:
             string += ":" + self.class_name
         return string
@@ -55,11 +51,12 @@ class DecisionTree(object):
 
     def __str__(self):
         lines = []
-        nodes = deque(self._root.children)
+        nodes = deque(map(lambda x: (0, x), self._root.children))
         while len(nodes) != 0:
-            node = nodes.popleft()
-            lines.append(str(node))
-            nodes.extendleft(reversed(node.children))
+            depth, node = nodes.popleft()
+            prefix = "\t" * depth + ("|" if depth > 0 else "")
+            lines.append(prefix + str(node))
+            nodes.extendleft(map(lambda x: (depth + 1, x), reversed(node.children)))
         return "\n".join(lines)
 
     def classify(self, instance):
@@ -73,7 +70,7 @@ class DecisionTree(object):
 
     def _build(self):
         attributes_names = list(self._table[0][0])
-        self._root = self._run_dtl(self._table, attributes_names, 0)
+        self._root = self._run_dtl(self._table, attributes_names)
 
     @staticmethod
     def compute_entropy(table):
@@ -96,26 +93,26 @@ class DecisionTree(object):
     def _dtl_best_attribute(table, attributes_names):
         return max(attributes_names, key=lambda x: DecisionTree.compute_gain(table, x))
 
-    def _run_dtl(self, table, attributes_names, depth):
+    def _run_dtl(self, table, attributes_names):
         if len(table) == 0:
-            return DecisionTreeNode(depth, self._default_class_name)
+            return DecisionTreeNode( self._default_class_name)
         if set(map(lambda x: x[1], table)) == 1:
-            leaf_node = DecisionTreeNode(depth)
+            leaf_node = DecisionTreeNode()
             leaf_node.class_name = table[0][1]
             return leaf_node
         if len(attributes_names) == 0:
-            leaf_node = DecisionTreeNode(depth)
+            leaf_node = DecisionTreeNode()
             leaf_node.class_name = max(get_classes_names(table), key=lambda x: get_class_probability(table, x))
             return leaf_node
 
-        node = DecisionTreeNode(depth)
+        node = DecisionTreeNode()
         attribute_name = self._dtl_best_attribute(table, attributes_names)
 
         for attribute_value in get_possible_attribute_values(table, attribute_name):
             child_node_table = list(filter(lambda x: x[0][attribute_name] == attribute_value, table))
             child_node_attributes_names = attributes_names[:]
             child_node_attributes_names.remove(attribute_name)
-            child_node = self._run_dtl(child_node_table, child_node_attributes_names, depth + 1)
+            child_node = self._run_dtl(child_node_table, child_node_attributes_names)
             child_node.attribute_name = attribute_name
             child_node.attribute_value = attribute_value
             node.children.append(child_node)
