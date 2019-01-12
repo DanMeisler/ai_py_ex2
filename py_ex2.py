@@ -1,5 +1,5 @@
 from itertools import zip_longest
-from collections import Counter
+from collections import Counter, deque
 from functools import reduce
 import operator
 
@@ -26,14 +26,18 @@ def load_table(table_file_path):
 
 
 class DecisionTreeNode(object):
-    def __init__(self):
+    def __init__(self, depth=0, class_name=None):
         self.attribute_name = None
         self.attribute_value = None
         self.children = []
         self.class_name = None
+        self._depth = depth
 
     def __str__(self):
-        string = self.attribute_name + " = " + self.attribute_value
+        if self._depth == 0:
+            return ""
+        string = "" if self._depth == 1 else "\t" * self._depth + "|"
+        string += self.attribute_name + "=" + self.attribute_value
         if self.class_name:
             string += ":" + self.class_name
         return string
@@ -44,12 +48,19 @@ class DecisionTree(object):
 
     def __init__(self, table):
         self._table = table
+        self._default_class_name = list(get_classes_names(table))[0]
         self._root = None
         self._build()
         self._save_to_file()
 
     def __str__(self):
-        return str()
+        lines = []
+        nodes = deque(self._root.children)
+        while len(nodes) != 0:
+            node = nodes.popleft()
+            lines.append(str(node))
+            nodes.extendleft(reversed(node.children))
+        return "\n".join(lines)
 
     def classify(self, instance):
         node = self._root
@@ -62,38 +73,38 @@ class DecisionTree(object):
 
     def _build(self):
         attributes_names = list(self._table[0][0])
-        self._root = self._run_dtl(self._table, attributes_names)
+        self._root = self._run_dtl(self._table, attributes_names, 0)
 
     @staticmethod
     def _dtl_best_attribute(table, attributes_names):
         return attributes_names[0]
 
-    def _run_dtl(self, table, attributes_names):
+    def _run_dtl(self, table, attributes_names, depth):
         if len(table) == 0:
-            return DecisionTreeNode()
+            return DecisionTreeNode(depth, self._default_class_name)
         if set(map(lambda x: x[1], table)) == 1:
-            leaf_node = DecisionTreeNode()
-            leaf_node.classification = table[0][1]
+            leaf_node = DecisionTreeNode(depth)
+            leaf_node.class_name = table[0][1]
             return leaf_node
         if len(attributes_names) == 0:
-            leaf_node = DecisionTreeNode()
+            leaf_node = DecisionTreeNode(depth)
             leaf_node.class_name = max(get_classes_names(table), key=lambda x: get_class_probability(table, x))
             return leaf_node
 
-        decision_tree = DecisionTreeNode()
+        node = DecisionTreeNode(depth)
         attribute_name = self._dtl_best_attribute(table, attributes_names)
 
         for attribute_value in get_possible_attribute_values(table, attribute_name):
-            branch_table = list(filter(lambda x: x[0][attribute_name] == attribute_value, table))
-            branch_attributes_names = attributes_names[:]
-            branch_attributes_names.remove(attribute_name)
-            branch_decision_tree = self._run_dtl(branch_table, branch_attributes_names)
-            branch_decision_tree.attribute_name = attribute_name
-            branch_decision_tree.attribute_value = attribute_value
-            decision_tree.children.append(branch_decision_tree)
+            child_node_table = list(filter(lambda x: x[0][attribute_name] == attribute_value, table))
+            child_node_attributes_names = attributes_names[:]
+            child_node_attributes_names.remove(attribute_name)
+            child_node = self._run_dtl(child_node_table, child_node_attributes_names, depth + 1)
+            child_node.attribute_name = attribute_name
+            child_node.attribute_value = attribute_value
+            node.children.append(child_node)
 
-        decision_tree.children = sorted(decision_tree.children, key=lambda x: x.attribute_name)
-        return decision_tree
+        node.children = sorted(node.children, key=lambda x: x.attribute_value)
+        return node
 
     def _save_to_file(self):
         with open(self.SAVE_FILE_PATH, "w") as save_file:
