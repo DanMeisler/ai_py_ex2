@@ -25,6 +25,81 @@ def load_table(table_file_path):
     return table
 
 
+class DecisionTreeNode(object):
+    def __init__(self):
+        self.attribute_name = None
+        self.attribute_value = None
+        self.children = []
+        self.class_name = None
+
+    def __str__(self):
+        string = self.attribute_name + " = " + self.attribute_value
+        if self.class_name:
+            string += ":" + self.class_name
+        return string
+
+
+class DecisionTree(object):
+    SAVE_FILE_PATH = "output_tree.txt"
+
+    def __init__(self, table):
+        self._table = table
+        self._root = None
+        self._build()
+        self._save_to_file()
+
+    def __str__(self):
+        return str()
+
+    def classify(self, instance):
+        node = self._root
+        while not node.class_name:
+            for child in node.children:
+                if instance[child.attribute_name] == child.attribute_value:
+                    node = child
+                    break
+        return node.class_name
+
+    def _build(self):
+        attributes_names = list(self._table[0][0])
+        self._root = self._run_dtl(self._table, attributes_names)
+
+    @staticmethod
+    def _dtl_best_attribute(table, attributes_names):
+        return attributes_names[0]
+
+    def _run_dtl(self, table, attributes_names):
+        if len(table) == 0:
+            return DecisionTreeNode()
+        if set(map(lambda x: x[1], table)) == 1:
+            leaf_node = DecisionTreeNode()
+            leaf_node.classification = table[0][1]
+            return leaf_node
+        if len(attributes_names) == 0:
+            leaf_node = DecisionTreeNode()
+            leaf_node.class_name = max(get_classes_names(table), key=lambda x: get_class_probability(table, x))
+            return leaf_node
+
+        decision_tree = DecisionTreeNode()
+        attribute_name = self._dtl_best_attribute(table, attributes_names)
+
+        for attribute_value in get_possible_attribute_values(table, attribute_name):
+            branch_table = list(filter(lambda x: x[0][attribute_name] == attribute_value, table))
+            branch_attributes_names = attributes_names[:]
+            branch_attributes_names.remove(attribute_name)
+            branch_decision_tree = self._run_dtl(branch_table, branch_attributes_names)
+            branch_decision_tree.attribute_name = attribute_name
+            branch_decision_tree.attribute_value = attribute_value
+            decision_tree.children.append(branch_decision_tree)
+
+        decision_tree.children = sorted(decision_tree.children, key=lambda x: x.attribute_name)
+        return decision_tree
+
+    def _save_to_file(self):
+        with open(self.SAVE_FILE_PATH, "w") as save_file:
+            save_file.write(str(self))
+
+
 def get_hamming_distance(instance1, instance2):
     """
     Given two table instances (dictionaries), returns the hamming distance between them.
@@ -56,8 +131,8 @@ def get_classes_names(table):
     return set(map(lambda x: x[1], table))
 
 
-def get_possible_attribute_value_count(table, attribute_name):
-    return len(set(map(lambda x: x[0][attribute_name], table)))
+def get_possible_attribute_values(table, attribute_name):
+    return set(map(lambda x: x[0][attribute_name], table))
 
 
 def get_instance_count(table, filter_function):
@@ -65,7 +140,7 @@ def get_instance_count(table, filter_function):
 
 
 def get_smoothed_attribute_probability(table, class_name, attribute_name, attribute_value):
-    k = get_possible_attribute_value_count(table, attribute_name)
+    k = len(get_possible_attribute_values(table, attribute_name))
     n1 = get_instance_count(table, lambda x: ((x[1] == class_name) and (x[0][attribute_name] == attribute_value)))
     n2 = get_instance_count(table, lambda x: x[1] == class_name)
     return (n1 + 1) / float(n2 + k)
@@ -95,17 +170,15 @@ def create_prediction(training_table, instances, model_type):
     :param model_type: a ModelTypes value
     :return: a prediction
     """
-    prediction = []
-    for instance in instances:
-        if model_type == "Decision tree":
-            pass
-        elif model_type == "KNN":
-            prediction.append(knn_classify(training_table, instance))
-        elif model_type == "Naive base":
-            prediction.append(naive_base_classify(training_table, instance))
-        else:
-            raise NotImplementedError()
-    return prediction
+    if model_type == "Decision tree":
+        decision_tree = DecisionTree(training_table)
+        return list(map(lambda x: decision_tree.classify(x), instances))
+    if model_type == "KNN":
+        return list(map(lambda x: knn_classify(training_table, x), instances))
+    if model_type == "Naive base":
+        return list(map(lambda x: naive_base_classify(training_table, x), instances))
+
+    raise NotImplementedError()
 
 
 def get_prediction_accuracy(prediction, real):
