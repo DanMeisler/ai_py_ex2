@@ -278,7 +278,7 @@ def output_predictions(training_table, test_table, output_file_path="output.txt"
     :param test_table: a table (See load_table function doc for more information)
     :param output_file_path: path to a file to write the output into
     """
-    header_line = "\t".join(["Num", "DT ", "KNN>", "naiveBase"])
+    header_line = "\t".join(["Num", "DT ", "KNN", "naiveBase"])
     test_instances = list(map(lambda x: x[0], test_table))
     predictions = list(map(lambda x: create_prediction(training_table, test_instances, x), MODEL_TYPES))
     real = list(map(lambda x: x[1], test_table))
@@ -289,7 +289,7 @@ def output_predictions(training_table, test_table, output_file_path="output.txt"
         for instance_number, instance_prediction in enumerate(zip_longest(*predictions, fillvalue="")):
             output_file.write("%d\t" % (instance_number + 1) + "\t".join(instance_prediction) + "\n")
 
-        output_file.write("\t" + "\t".join(predictions_accuracies) + "\n")
+        output_file.write("\t" + "\t".join(predictions_accuracies))
 
 
 def main():
