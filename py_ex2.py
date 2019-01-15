@@ -173,8 +173,7 @@ class DecisionTree(object):
     def _mode(table):
         return max(get_classes_names(table), key=lambda x: get_class_probability(table, x))
 
-    @staticmethod
-    def _run_dtl(table, attributes_names, default):
+    def _run_dtl(self, table, attributes_names, default):
         """
         Recursive function which implements the id3 algorithm
         """
@@ -192,11 +191,11 @@ class DecisionTree(object):
         node = DecisionTreeNode()
         attribute_name = DecisionTree._dtl_best_attribute(table, attributes_names)
 
-        for attribute_value in get_possible_attribute_values(table, attribute_name):
+        for attribute_value in get_possible_attribute_values(self._table, attribute_name):
             child_node_table = list(filter(lambda x: x[0][attribute_name] == attribute_value, table))
             child_node_attributes_names = attributes_names[:]
             child_node_attributes_names.remove(attribute_name)
-            child_node = DecisionTree._run_dtl(child_node_table, child_node_attributes_names, DecisionTree._mode(table))
+            child_node = self._run_dtl(child_node_table, child_node_attributes_names, DecisionTree._mode(table))
             child_node.attribute_name = attribute_name
             child_node.attribute_value = attribute_value
             node.children.append(child_node)
